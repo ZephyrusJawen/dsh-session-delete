@@ -35,7 +35,7 @@ Harness 为每个会话持久化一份只追加的日志，并且刻意不提供
 dsh plugin --profile desktop add /path/to/dsh-session-delete
 
 # 从打包好的 tarball
-dsh plugin --profile desktop add ./dsh-session-delete-0.1.1.tgz
+dsh plugin --profile desktop add ./dsh-session-delete-0.1.1-rc2.tgz
 
 # 直接从 GitHub，走 HTTPS（本包提交了构建产物，安装时不会执行任何构建）
 dsh plugin --profile desktop add https://github.com/<you>/dsh-session-delete.git
