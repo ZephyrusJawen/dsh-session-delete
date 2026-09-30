@@ -55,7 +55,7 @@ Quit the application first — the desktop profile is rewritten while it runs.
 dsh plugin --profile desktop add /path/to/dsh-session-delete
 
 # from a packed tarball
-dsh plugin --profile desktop add ./dsh-session-delete-0.1.1-rc2.tgz
+dsh plugin --profile desktop add ./dsh-session-delete-0.1.1.tgz
 
 # straight from GitHub, over HTTPS (this package ships its built output, so nothing builds)
 dsh plugin --profile desktop add https://github.com/<you>/dsh-session-delete.git
