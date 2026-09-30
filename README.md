@@ -23,8 +23,9 @@ patches to the application itself.
 ## What it adds
 
 - **A host method** — the `sessionDelete` Remote namespace with a single
-  `deleteSession({ sessionId })` that removes the session's stored log
-  directory.
+  `deleteSession({ sessionId })` that removes the session from every place the
+  sidebar can still list it from: its stored log directory, the Host's
+  in-memory session store, and the durable workspace ledger.
 - **A sidebar entry** — a red **Delete session** item at the bottom of a session
   row's `...` menu, after Archive. Selecting it opens a confirmation dialog that
   names the session and warns that the action cannot be undone.
@@ -99,14 +100,23 @@ dsh plugin --profile desktop remove dsh-session-delete
   must encode exactly this session id and the file inside must be a canonical
   `session.v<n>.jsonl.zstd` generation. Anything else is refused rather than
   deleted.
-- **A session with no stored log is reported, not deleted.** A brand-new session
-  that was never flushed has no artifact; deleting it would be a no-op and the
-  host would recreate it on the next flush, so the dialog says there is nothing
-  to delete.
-- **Derived state self-heals.** The durable workspace table and any search index
-  may keep an id for a while; both already tolerate externally removed session
-  files (`session-query` reconciles on its next observation, and the sidebar
-  filters unknown ids), so nothing else is rewritten.
+- **A session with no stored log is still deleted when it is live.** A
+  brand-new session that was never flushed holds no artifact, but while the
+  Host process still holds it in memory the sidebar would keep listing it:
+  the Host list index merges every live session with the disk logs. Such a
+  session is detached from the in-memory store (and its ledger slots), so the
+  row disappears; only a session that is neither live nor stored reports
+  "no longer exists".
+- **Derived state is cleaned explicitly.** Deleting the log directory alone is
+  not enough: the session-list index would keep serving a live in-memory
+  session, and the workspace ledger (archive/pin sets, per-workspace session
+  accounts) only changes on its own domain events, which a file removal never
+  triggers. The method therefore drains the session's pending writes, detaches
+  it from the in-memory store (emitting the usual `session/disposed` teardown),
+  and drops its archive/pin membership and its slot in each workspace's
+  account — which publishes the `workspace/follow` upsert that makes the
+  sidebar's grouped view drop the row. Each step is a no-op when the session
+  is not present there, so partial states heal on a retry.
 
 ## How it works
 
@@ -115,7 +125,7 @@ dsh plugin --profile desktop remove dsh-session-delete
 | Host endpoint | A service published with `ctx.provide` carrying the versioned prototype marker plus the visible `typertRemote` binding — exactly what the Gateway's source-mode discovery reads when a plugin ships no generated descriptor. |
 | Browser entry | `ctx.slots.inject("sidebar.workspaces.session.menu.item")` plus a `shell.overlay` entry, built from the shared UI primitives (`MenuItemButton`, `Modal`, `Button`). |
 | Two fibers | `ctx.remote.sessionDelete` is a nested Cordis service key, which Cordis only lets a Context read when that Context declares it in `inject` — and the service does not exist until this plugin publishes it. `apply` mounts the namespace; the row entry and dialog live in a child fiber that injects it, so Cordis parks that fiber until the endpoint is live and the menu entry can never appear without one. |
-| Deletion | `sessionPersistence.list()` finds the stored session, `locate()` resolves its path, a guard proves the path belongs to that id, then the session directory is removed. |
+| Deletion | The `workspace/session-activity` waterfall refuses running work. Then, before any destructive step: `ctx.sessions` is checked — a live session is drained through `session/flush` and removed with `detachEntered` (emitting `session/disposed`) — and `workspaceRegistry` drops the session's archive/pin membership and its slot in each workspace's ordered account, which publishes the `workspace/follow` upsert the sidebar listens to. Finally `sessionPersistence.list()` + `locate()` resolve the stored log, a guard proves the path belongs to that id, and the session directory is removed. |
 
 ## Known limitations
 
@@ -144,7 +154,7 @@ pnpm test
 
 | Test | Covers |
 |---|---|
-| `host-logic.test.mjs` | deletion on a real filesystem, the activity refusal, unknown and unmaterialized sessions, the foreign-directory guard, malformed payloads |
+| `host-logic.test.mjs` | deletion on a real filesystem, the activity refusal, unknown and unmaterialized sessions, the foreign-directory guard, malformed payloads, live-session detach plus workspace-ledger cleanup |
 | `client-wiring.test.mjs` | module-row contract, slot registrations, descriptor shape, delete → refresh → navigate, failure wording |
 | `cordis-registration.test.mjs` | the host plugin in a real Cordis tree, the protocol marker, disposal |
 | `cordis-client-fibers.test.mjs` | the browser half in a real Cordis tree, including the nested-key rule that shapes the two-fiber split |
