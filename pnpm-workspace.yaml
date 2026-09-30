@@ -1,0 +1,8 @@
+# This package is not a workspace; the file only carries local settings for a
+# contributor's `pnpm install` (the tests are the only thing that needs one).
+#
+# autoInstallPeers is off so the host's peer packages are not pulled into this
+# checkout, and the hoisted linker matches how the harness profiles install
+# plugin trees.
+autoInstallPeers: false
+nodeLinker: hoisted

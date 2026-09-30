@@ -1,0 +1,8 @@
+# Layer contributed by the `dsh-session-delete` bundle.
+#
+# One host row: the plugin that owns the `sessionDelete` Remote namespace. The
+# browser half travels with the same package through its `dsh.client`
+# declaration, so no second row is needed.
+- insert:
+    - id: session-delete
+      name: 'dsh-session-delete'
